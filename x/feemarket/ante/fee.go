@@ -10,6 +10,7 @@ import (
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 
+	didtypes "github.com/cheqd/cheqd-node/x/did/types"
 	feemarkettypes "github.com/skip-mev/feemarket/x/feemarket/types"
 )
 
@@ -210,15 +211,38 @@ func (dfd feeMarketCheckDecorator) EscrowFunds(ctx sdk.Context, sdkTx sdk.Tx, pr
 		return sdkerrors.ErrUnknownAddress.Wrapf("fee payer address: %s does not exist", deductFeesFrom)
 	}
 
-	return escrow(dfd.bankKeeper, ctx, deductFeesFromAcc, sdk.NewCoins(providedFee))
+	return dfd.escrow(ctx, deductFeesFromAcc, feeTx, sdk.NewCoins(providedFee))
 }
 
 // escrow deducts coins to the escrow.
-func escrow(bankKeeper BankKeeper, ctx sdk.Context, acc authtypes.AccountI, coins sdk.Coins) error {
-	targetModuleAcc := feemarkettypes.FeeCollectorName
-	err := bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), targetModuleAcc, coins)
+func (dfd feeMarketCheckDecorator) escrow(ctx sdk.Context, acc authtypes.AccountI, feeTx sdk.FeeTx, coins sdk.Coins) error {
+	params, err := dfd.feemarketKeeper.GetParams(ctx)
 	if err != nil {
 		return err
+	}
+
+	nativeDenom := params.FeeDenom
+
+	onlyNativeDenom := true
+	for _, fee := range feeTx.GetFee() {
+		if fee.Denom != nativeDenom {
+			// If any other token besides the native denom is present, set the flag to false
+			onlyNativeDenom = false
+			break
+		}
+	}
+
+	targetModuleAcc := feemarkettypes.FeeCollectorName
+	if onlyNativeDenom {
+		err := dfd.bankKeeper.SendCoinsFromAccountToModule(ctx, acc.GetAddress(), targetModuleAcc, coins)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := dfd.bankKeeper.SendCoinsFromModuleToModule(ctx, didtypes.ModuleName, targetModuleAcc, coins)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
