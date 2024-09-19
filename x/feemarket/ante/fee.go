@@ -239,7 +239,9 @@ func (dfd feeMarketCheckDecorator) escrow(ctx sdk.Context, acc authtypes.Account
 			return err
 		}
 	} else {
-		err := dfd.bankKeeper.SendCoinsFromModuleToModule(ctx, didtypes.ModuleName, targetModuleAcc, coins)
+		didAddr := dfd.accountKeeper.GetModuleAddress(didtypes.ModuleName)
+		feeBal := dfd.bankKeeper.GetBalance(ctx, didAddr, nativeDenom)
+		err := dfd.bankKeeper.SendCoinsFromModuleToModule(ctx, didtypes.ModuleName, targetModuleAcc, sdk.NewCoins(feeBal))
 		if err != nil {
 			return err
 		}
