@@ -110,9 +110,11 @@ func (dfd feeMarketCheckDecorator) anteHandle(ctx sdk.Context, tx sdk.Tx, simula
 		return ctx, errorsmod.Wrapf(feemarkettypes.ErrTooManyFeeCoins, "got length %d", len(feeCoins))
 	}
 
-	// if simulating - create a dummy zero value for the user
-	payCoin := sdk.NewCoin(params.FeeDenom, sdkmath.ZeroInt())
-	if !simulate {
+	var payCoin sdk.Coin
+	if simulate && len(feeCoins) == 0 {
+		// if simulating - create a dummy zero value for the user
+		payCoin = sdk.NewCoin(params.FeeDenom, sdkmath.ZeroInt())
+	} else {
 		payCoin = feeCoins[0]
 	}
 
